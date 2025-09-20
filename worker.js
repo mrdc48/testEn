@@ -30,7 +30,7 @@ function logDebug(message) {
 function getHeaders(token = '') {
     const headers = {
         'Cookie': `mac=${config.mac_address}; stb_lang=en; timezone=GMT`,
-        'Referer': `http://${config.host}/stalker_portal/c/`, // ✅ fixed
+        'Referer': `http://${config.host}/stalker_portal/c/`,
         'User-Agent': 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3',
         'X-User-Agent': `Model: ${config.stb_type}; Link: WiFi`
     };
@@ -164,8 +164,13 @@ async function convertJsonToM3U(channels, profile, account_info, request) {
         ''
     ];
 
-    // ... (unchanged convertJsonToM3U from your code) ...
-    // I skipped rewriting it fully since the bug was only in host + parsing
+    for (let c of channels) {
+        if (!c.cmd) continue;
+        let streamUrl = c.cmd.replace(/^ffrt\s+/, '').trim();
+        m3u.push(`#EXTINF:-1 tvg-id="${c.tvgid}" tvg-logo="${c.logo}" group-title="${c.title}",${c.name}`);
+        m3u.push(streamUrl);
+    }
+
     return m3u.join('\n');
 }
 
