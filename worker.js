@@ -2,7 +2,7 @@
 
 // ============ ⚙ CONFIGURATION ============
 const config = {
-    host: 'portal.elite4k.co', // ✅ Domain only, no http:// and no /c/
+    host: 'portal.elite4k.co', // Domain only, no http:// and no /c/
     mac_address: '00:1A:79:00:46:57',
     serial_number: 'E3E5E31855F36',
     device_id: 'E55198A8CF00D3547548BD5E3023FD7F66CE58E4D072BD028AA6E250434770F2',
@@ -42,9 +42,8 @@ function getHeaders(token = '') {
 async function getToken() {
     const url = `http://${config.host}/stalker_portal/server/load.php?type=stb&action=handshake&token=&JsHttpRequest=1-xml`;
     try {
-        const response = await fetch(url, { headers: getHeaders() });
-        const text = await response.text();
-        const data = JSON.parse(text);
+        const res = await fetch(url, { headers: getHeaders() });
+        const data = await res.json();
         return data.js?.token || '';
     } catch (e) {
         logDebug(`Error in getToken: ${e.message}`);
@@ -63,8 +62,7 @@ async function auth(token) {
 
     try {
         const res = await fetch(url, { headers: getHeaders(token) });
-        const text = await res.text();
-        const data = JSON.parse(text);
+        const data = await res.json();
         return data.js || [];
     } catch (e) {
         logDebug(`Error in auth: ${e.message}`);
@@ -76,8 +74,7 @@ async function handShake(token) {
     const url = `http://${config.host}/stalker_portal/server/load.php?type=stb&action=handshake&token=${token}&JsHttpRequest=1-xml`;
     try {
         const res = await fetch(url, { headers: getHeaders() });
-        const text = await res.text();
-        const data = JSON.parse(text);
+        const data = await res.json();
         return data.js?.token || '';
     } catch (e) {
         logDebug(`Error in handShake: ${e.message}`);
@@ -89,8 +86,7 @@ async function getAccountInfo(token) {
     const url = `http://${config.host}/stalker_portal/server/load.php?type=account_info&action=get_main_info&JsHttpRequest=1-xml`;
     try {
         const res = await fetch(url, { headers: getHeaders(token) });
-        const text = await res.text();
-        const data = JSON.parse(text);
+        const data = await res.json();
         return data.js || [];
     } catch (e) {
         logDebug(`Error in getAccountInfo: ${e.message}`);
@@ -102,8 +98,7 @@ async function getGenres(token) {
     const url = `http://${config.host}/stalker_portal/server/load.php?type=itv&action=get_genres&JsHttpRequest=1-xml`;
     try {
         const res = await fetch(url, { headers: getHeaders(token) });
-        const text = await res.text();
-        const data = JSON.parse(text);
+        const data = await res.json();
         return data.js || [];
     } catch (e) {
         logDebug(`Error in getGenres: ${e.message}`);
@@ -112,14 +107,12 @@ async function getGenres(token) {
 }
 
 async function getStreamURL(id, token) {
-    const url = `http://${config.host}/stalker_portal/server/load.php?type=itv&action=create_link&cmd=ffrt%20http://localhost/ch/${id}&JsHttpRequest=1-xml`;
+    const url = `http://${config.host}/stalker_portal/server/load.php?type=itv&action=create_link&cmd=ffrt%20${id}&JsHttpRequest=1-xml`;
     try {
         const res = await fetch(url, { headers: getHeaders(token) });
-        const text = await res.text();
-        const data = JSON.parse(text);
+        const data = await res.json();
         let cmd = data.js?.cmd || '';
-        // Remove localhost/ch/ to make domain-only URL
-        cmd = cmd.replace(/^ffrt\s+http:\/\/localhost\/ch\//, '');
+        cmd = cmd.replace(/^ffrt\s+/, '').trim(); // Remove only 'ffrt ' prefix
         return cmd;
     } catch (e) {
         logDebug(`Error in getStreamURL: ${e.message}`);
@@ -141,16 +134,12 @@ async function genToken() {
 
 // ================== M3U CONVERSION ==================
 async function convertJsonToM3U(channels, profile, account_info, request) {
-    let m3u = ['#EXTM3U', `# Total Channels => ${channels.length}`, '# Script => @tg_aadi', ''];
+    const m3u = ['#EXTM3U', `# Total Channels => ${channels.length}`, '# Script => @tg_aadi', ''];
     const origin = new URL(request.url).origin;
 
-    for (let c of channels) {
+    for (const c of channels) {
         if (!c.cmd) continue;
-        // Rewrite URL to domain only, without /ch/
-        const realCmd = c.cmd.replace(/^ffrt\s+http:\/\/localhost\/ch\//, '');
-        const streamUrl = realCmd.startsWith('http') ? realCmd : `${origin}/${realCmd}.m3u8`;
-
-
+        const streamUrl = c.cmd.startsWith('http') ? c.cmd : `${origin}/${c.cmd}.m3u8`;
         m3u.push(`#EXTINF:-1 tvg-id="${c.tvgid}" tvg-logo="${c.logo}" group-title="${c.title}",${c.name}`);
         m3u.push(streamUrl);
     }
@@ -171,6 +160,7 @@ async function handleRequest(request) {
         const { token, profile, account_info } = await genToken();
         if (!token) return new Response('Token generation failed', { status: 500 });
 
+        // Playlist endpoint
         if (url.pathname === '/playlist.m3u8') {
             const channelsUrl = `http://${config.host}/stalker_portal/server/load.php?type=itv&action=get_all_channels&JsHttpRequest=1-xml`;
             let channelsData;
@@ -187,7 +177,7 @@ async function handleRequest(request) {
             if (channelsData.js?.data) {
                 channels = channelsData.js.data.map(item => ({
                     name: item.name || 'Unknown',
-                    cmd: item.cmd || '',
+                    cmd: item.cmd || item.id, // fallback to channel ID if cmd missing
                     tvgid: item.xmltv_id || '',
                     id: item.tv_genre_id || '',
                     logo: item.logo || ''
@@ -202,11 +192,14 @@ async function handleRequest(request) {
             return new Response(m3uContent, { headers: { 'Content-Type': 'application/vnd.apple.mpegurl' } });
         }
 
+        // Individual channel endpoint
         if (lastPart.endsWith('.m3u8') && lastPart !== 'playlist.m3u8') {
             const id = lastPart.replace(/\.m3u8$/, '');
             const stream = await getStreamURL(id, token);
             if (!stream) return new Response('No stream URL received', { status: 500 });
-            return Response.redirect(`${new URL(request.url).origin}/${stream}.m3u8`, 302);
+
+            const redirectUrl = stream.startsWith('http') ? stream : `${new URL(request.url).origin}/${stream}.m3u8`;
+            return Response.redirect(redirectUrl, 302);
         }
 
         return new Response('Not Found', { status: 404 });
