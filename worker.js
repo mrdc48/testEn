@@ -6,7 +6,7 @@ const config = {
     mac_address: '00:1A:79:00:46:57', // Replace with your MAC address
     serial_number: 'E3E5E31855F36', // Replace with your serial number
     device_id: 'E55198A8CF00D3547548BD5E3023FD7F66CE58E4D072BD028AA6E250434770F2', // Replace with your device_id
-    device_id_2: 'E55198A8CF00D3547548BD5E3023FD7F66CE58E4D072BD028AA6E250434770F2', // Replace with your device_id_2
+    device_id_2: '722917E74B5ADCA05C9F15F6283D01764544B2821422FA50B3A5A0FE5243944F', // Replace with your device_id_2
     stb_type: 'MAG250', // Replace with Stalker-Portal Stb_type
     api_signature: '263', // No need to change
 };
