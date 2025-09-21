@@ -148,7 +148,7 @@ async function convertJsonToM3U(channels, profile, account_info, request) {
         if (!c.cmd) continue;
         // Rewrite URL to domain only, without /ch/
         const realCmd = c.cmd.replace(/^ffrt\s+http:\/\/localhost\/ch\//, '');
-        const streamUrl = `${origin}/${realCmd}.m3u8`;
+        const streamUrl = `${realCmd}.m3u8`;
 
         m3u.push(`#EXTINF:-1 tvg-id="${c.tvgid}" tvg-logo="${c.logo}" group-title="${c.title}",${c.name}`);
         m3u.push(streamUrl);
