@@ -38,13 +38,21 @@ function getHeaders(token = '') {
     return headers;
 }
 
+function safeJsonParse(text) {
+    try {
+        return JSON.parse(text);
+    } catch {
+        return {};
+    }
+}
+
 // ================== AUTH & PORTAL FUNCTIONS ==================
 async function getToken() {
     const url = `http://${config.host}/stalker_portal/server/load.php?type=stb&action=handshake&token=&JsHttpRequest=1-xml`;
     try {
         const response = await fetch(url, { headers: getHeaders() });
         const text = await response.text();
-        const data = JSON.parse(text);
+        const data = safeJsonParse(text);
         return data.js?.token || '';
     } catch (e) {
         logDebug(`Error in getToken: ${e.message}`);
@@ -64,7 +72,7 @@ async function auth(token) {
     try {
         const res = await fetch(url, { headers: getHeaders(token) });
         const text = await res.text();
-        const data = JSON.parse(text);
+        const data = safeJsonParse(text);
         return data.js || [];
     } catch (e) {
         logDebug(`Error in auth: ${e.message}`);
@@ -77,7 +85,7 @@ async function handShake(token) {
     try {
         const res = await fetch(url, { headers: getHeaders() });
         const text = await res.text();
-        const data = JSON.parse(text);
+        const data = safeJsonParse(text);
         return data.js?.token || '';
     } catch (e) {
         logDebug(`Error in handShake: ${e.message}`);
@@ -90,7 +98,7 @@ async function getAccountInfo(token) {
     try {
         const res = await fetch(url, { headers: getHeaders(token) });
         const text = await res.text();
-        const data = JSON.parse(text);
+        const data = safeJsonParse(text);
         return data.js || [];
     } catch (e) {
         logDebug(`Error in getAccountInfo: ${e.message}`);
@@ -103,7 +111,7 @@ async function getGenres(token) {
     try {
         const res = await fetch(url, { headers: getHeaders(token) });
         const text = await res.text();
-        const data = JSON.parse(text);
+        const data = safeJsonParse(text);
         return data.js || [];
     } catch (e) {
         logDebug(`Error in getGenres: ${e.message}`);
@@ -116,7 +124,7 @@ async function getStreamURL(id, token) {
     try {
         const res = await fetch(url, { headers: getHeaders(token) });
         const text = await res.text();
-        const data = JSON.parse(text);
+        const data = safeJsonParse(text);
         let cmd = data.js?.cmd || '';
         // Remove localhost/ch/ to make domain-only URL
         cmd = cmd.replace(/^ffrt\s+http:\/\/localhost\/ch\//, '');
@@ -142,13 +150,12 @@ async function genToken() {
 // ================== M3U CONVERSION ==================
 async function convertJsonToM3U(channels, profile, account_info, request) {
     let m3u = ['#EXTM3U', `# Total Channels => ${channels.length}`, '# Script => @tg_aadi', ''];
-    const origin = new URL(request.url).origin;
 
     for (let c of channels) {
         if (!c.cmd) continue;
         // Rewrite URL to domain only, without /ch/
         const realCmd = c.cmd.replace(/^ffrt\s+http:\/\/localhost\/ch\//, '');
-        const streamUrl = `${realCmd}.m3u8`;
+        const streamUrl = realCmd.endsWith('.m3u8') ? realCmd : `${realCmd}.m3u8`;
 
         m3u.push(`#EXTINF:-1 tvg-id="${c.tvgid}" tvg-logo="${c.logo}" group-title="${c.title}",${c.name}`);
         m3u.push(streamUrl);
@@ -176,7 +183,7 @@ async function handleRequest(request) {
             try {
                 const res = await fetch(channelsUrl, { headers: getHeaders(token) });
                 const text = await res.text();
-                channelsData = JSON.parse(text);
+                channelsData = safeJsonParse(text);
             } catch (e) {
                 return new Response(`Error fetching channels: ${e.message}`, { status: 500 });
             }
@@ -205,7 +212,10 @@ async function handleRequest(request) {
             const id = lastPart.replace(/\.m3u8$/, '');
             const stream = await getStreamURL(id, token);
             if (!stream) return new Response('No stream URL received', { status: 500 });
-            return Response.redirect(`${new URL(request.url).origin}/${stream}.m3u8`, 302);
+
+            // Ensure final redirect is correct
+            const finalUrl = stream.endsWith('.m3u8') ? stream : `${stream}.m3u8`;
+            return Response.redirect(finalUrl, 302);
         }
 
         return new Response('Not Found', { status: 404 });
