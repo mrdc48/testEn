@@ -125,9 +125,10 @@ async function getStreamURL(id, token) {
         const res = await fetch(url, { headers: getHeaders(token) });
         const text = await res.text();
         const data = safeJsonParse(text);
+
         let cmd = data.js?.cmd || '';
-        // Remove localhost/ch/ to make domain-only URL
-        cmd = cmd.replace(/^ffrt\s+http:\/\/localhost\/ch\//, '');
+        // Remove only "ffrt " prefix if present
+        cmd = cmd.replace(/^ffrt\s+/, '');
         return cmd;
     } catch (e) {
         logDebug(`Error in getStreamURL: ${e.message}`);
@@ -153,8 +154,8 @@ async function convertJsonToM3U(channels, profile, account_info, request) {
 
     for (let c of channels) {
         if (!c.cmd) continue;
-        // Rewrite URL to domain only, without /ch/
-        const realCmd = c.cmd.replace(/^ffrt\s+http:\/\/localhost\/ch\//, '');
+        // Clean only "ffrt " prefix
+        const realCmd = c.cmd.replace(/^ffrt\s+/, '');
         const streamUrl = realCmd.endsWith('.m3u8') ? realCmd : `${realCmd}.m3u8`;
 
         m3u.push(`#EXTINF:-1 tvg-id="${c.tvgid}" tvg-logo="${c.logo}" group-title="${c.title}",${c.name}`);
@@ -213,9 +214,8 @@ async function handleRequest(request) {
             const stream = await getStreamURL(id, token);
             if (!stream) return new Response('No stream URL received', { status: 500 });
 
-            // Ensure final redirect is correct
-            const finalUrl = stream.endsWith('.m3u8') ? stream : `${stream}.m3u8`;
-            return Response.redirect(finalUrl, 302);
+            // Direct redirect to the signed CDN link (with token intact)
+            return Response.redirect(stream, 302);
         }
 
         return new Response('Not Found', { status: 404 });
