@@ -1,5 +1,10 @@
 {
   "name": "iptv-worker",
   "main": "worker.js",
-  "compatibility_date": "2025-09-20"
+  "compatibility_date": "2025-09-20",
+
+  // Cron trigger: runs every 5 minutes
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  }
 }
